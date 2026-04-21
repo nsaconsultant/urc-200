@@ -164,14 +164,28 @@ Commands the server **deliberately does not expose**: `B` (transmit), `*1` (beac
 
 The waterfall is an **opt-in Cargo feature**. The default build has no SDR toolchain requirements and will compile cleanly anywhere Rust + ALSA headers live. Only turn it on if you have the host libraries and actually want the panadapter.
 
-**Host prerequisites** (Debian/Ubuntu/DragonOS):
+### Host prerequisites (Debian / Ubuntu / DragonOS)
+
+Build-time (only when compiling `--features sdr`):
 
 ```bash
-sudo apt install libsoapysdr-dev clang libclang-dev
-# plus the driver for your device — e.g. SDRplay API 3.15 from sdrplay.com for an RSPdx / RSPdx-R2
+sudo apt install clang libclang-dev libsoapysdr-dev pkg-config
 ```
 
-**Build with the feature on:**
+Runtime:
+
+```bash
+sudo apt install libsoapysdr0.8
+# plus the vendor SDR runtime — e.g. SDRplay API 3.15 from sdrplay.com
+# for an RSPdx / RSPdx-R2. Installs sdrplay_apiService + the Soapy
+# SDRplay bridge module and starts the daemon as a systemd unit.
+```
+
+The SDRplay API ships a userspace daemon (`sdrplay_apiService`) that must be running and own the USB device. Our in-container build talks to it via POSIX shared memory + semaphores — no TCP involved.
+
+`libstdc++` requirement: the SoapySDR SDRplay module ships with `GLIBCXX_3.4.32` symbols, so whichever libstdc++ the process loads must be from GCC 13+ (Debian trixie / Ubuntu 24.04 / DragonOS). Bookworm's GCC 12 is not enough; the compose file bind-mounts the host's libstdc++ into the container for exactly this reason.
+
+### Native build
 
 ```bash
 cargo build --release -p urc200-server --features sdr
@@ -184,12 +198,27 @@ BINDGEN_EXTRA_CLANG_ARGS='-I/usr/lib/gcc/x86_64-linux-gnu/13/include' \
   cargo build --release -p urc200-server --features sdr
 ```
 
-**Runtime config** via env:
+### Docker build (recommended)
+
+`docker-compose.yml` is already wired for the SDR path. `sudo docker compose up -d --build` is all you need, provided the host prerequisites above are installed. Key non-obvious bits the compose file sets up (each commented inline — spelling them out here so it's clear what's going on):
+
+- `network_mode: host` — lets the container reach the host-side SDRplay daemon without port gymnastics. Also means `:3000` is exposed directly with no `ports:` mapping.
+- `ipc: host` — shares `/dev/shm` with the host. The SDRplay API uses POSIX shm + semaphores for client↔daemon IPC; private containers can't see those.
+- `pid: host` — the SDRplay client writes its own PID into a shm slot so the daemon can track live clients. In an isolated PID namespace that PID doesn't exist on the host and the daemon rejects the registration.
+- **Bind-mounts** from host into container:
+  - `/usr/local/lib/SoapySDR` — the SoapySDR module directory, including `libsdrPlaySupport.so`
+  - `/usr/local/lib/libsdrplay_api.so*` — the vendor client API
+  - `/opt/sdrplay_api` — daemon install dir
+  - `/usr/lib/x86_64-linux-gnu/libstdc++.so.6` — newer libstdc++ needed by the SDRplay module (see above)
+- `devices:` — `/dev/ttyUSB0` for the URC-200 serial link, `/dev/snd` for the UAA audio path (unchanged from the non-SDR build).
+
+### Runtime config (env)
 
 | var              | default            | notes                                                     |
 |------------------|--------------------|-----------------------------------------------------------|
 | `URC_SDR_DEVICE` | `driver=sdrplay`   | SoapySDR device-args string. e.g. `driver=rtlsdr`, `driver=sdrplay,serial=24051CD970` |
 | `URC_SDR_CENTER` | `251950000`        | Start-up center frequency in Hz. Retuned live from the UI. |
+| `SOAPY_SDR_LOG_LEVEL` | *(unset)*     | Set to `DEBUG` to see module-load + enumeration errors.    |
 
 **Using it:** with the server running, the main UI header shows a `Waterfall ↗` link (hidden when the feature isn't compiled in). Click it — it opens `/waterfall.html` as a named window target, so it lands on whichever monitor you last dragged it to. Controls:
 
