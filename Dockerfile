@@ -23,14 +23,20 @@ ENV BINDGEN_EXTRA_CLANG_ARGS=-I/usr/lib/gcc/x86_64-linux-gnu/12/include
 RUN cargo build --release --locked -p urc200-server --features sdr
 
 ################ runtime ################
-FROM debian:bookworm-slim
+# trixie (not bookworm) because the SoapySDR SDRplay module bind-mounted from
+# the host requires GLIBCXX_3.4.32+ (needs GCC 13's libstdc++). bookworm's
+# libstdc++6 is from GCC 12 and tops out at GLIBCXX_3.4.30.
+FROM debian:trixie-slim
 
 # libsoapysdr0.8 covers both urc200-server and the SoapySDR module loader.
 # SDRplay-specific libs (libsdrplay_api + the libsdrPlaySupport Soapy module)
 # are bind-mounted from the host at runtime via docker-compose so we don't
 # have to bake the vendor API into the image.
+#
+# libasound2t64 on trixie (the t64 time_t transition rename) — use an
+# alternative name if apt complains about the old package.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libasound2 \
+    libasound2t64 \
     libsoapysdr0.8 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*

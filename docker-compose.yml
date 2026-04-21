@@ -38,13 +38,6 @@ services:
       - /usr/local/lib/libsdrplay_api.so.3:/usr/local/lib/libsdrplay_api.so.3:ro
       - /usr/local/lib/libsdrplay_api.so.3.15:/usr/local/lib/libsdrplay_api.so.3.15:ro
       - /opt/sdrplay_api:/opt/sdrplay_api:ro
-      # The host's SoapySDR SDRplay module was built against a newer
-      # libstdc++ than bookworm ships (needs GLIBCXX_3.4.32+). Bind-mount
-      # the host's libstdc++ into /usr/local/lib (already on LD_LIBRARY_PATH
-      # ahead of the system one) so dlopen picks up the newer runtime.
-      # Newer libstdc++ is ABI-backward-compatible, so the in-image binary
-      # built on bookworm still runs fine against it.
-      - /usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/local/lib/libstdc++.so.6:ro
     group_add:
       - audio
       - dialout
