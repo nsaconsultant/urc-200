@@ -8,6 +8,7 @@
 //! `/api/ws/scan`.
 
 use crate::db::{Channel, Db};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::task::JoinHandle;
@@ -65,6 +66,18 @@ pub enum ScanEvent {
     },
 }
 
+/// Point-in-time snapshot of what the scanner is doing. Kept in a shared
+/// slot on [`ScannerHandle`] so a browser opening the `/api/ws/scan` socket
+/// after a scan has already started can be caught up with a synthetic
+/// `Started` + most-recent `Tuned` event, instead of sitting on its idle
+/// "Start" button while another tab is actively running.
+#[derive(Debug, Clone)]
+pub struct ScanSnapshot {
+    pub total: usize,
+    pub group: Option<String>,
+    pub last_tuned: Option<ScanEvent>, // always a Tuned variant when Some
+}
+
 enum ScanCmd {
     Start {
         config: ScanConfig,
@@ -79,6 +92,7 @@ enum ScanCmd {
 pub struct ScannerHandle {
     cmd: mpsc::Sender<ScanCmd>,
     events: broadcast::Sender<ScanEvent>,
+    snapshot: Arc<Mutex<Option<ScanSnapshot>>>,
 }
 
 impl ScannerHandle {
@@ -89,9 +103,17 @@ impl ScannerHandle {
     ) -> (Self, JoinHandle<()>) {
         let (cmd, rx) = mpsc::channel(32);
         let (events, _) = broadcast::channel(64);
+        let snapshot = Arc::new(Mutex::new(None::<ScanSnapshot>));
         let ev = events.clone();
-        let task = tokio::spawn(actor(rx, radio, db, telemetry, ev));
-        (Self { cmd, events }, task)
+        let snap = snapshot.clone();
+        let task = tokio::spawn(actor(rx, radio, db, telemetry, ev, snap));
+        (Self { cmd, events, snapshot }, task)
+    }
+
+    /// Current scan state, if any. Used by the WS handler to catch up a
+    /// newly-connected client.
+    pub fn current(&self) -> Option<ScanSnapshot> {
+        self.snapshot.lock().ok().and_then(|g| g.clone())
     }
 
     pub async fn start(&self, config: ScanConfig) -> Result<usize, String> {
@@ -143,12 +165,27 @@ async fn actor(
     db: Db,
     telemetry: broadcast::Sender<TelemetryUpdate>,
     events: broadcast::Sender<ScanEvent>,
+    snapshot: Arc<Mutex<Option<ScanSnapshot>>>,
 ) {
     let mut state: Option<ScanState> = None;
     let mut squelch_rx = telemetry.subscribe();
     let mut latest_squelch = false;
     let mut ticker = tokio::time::interval(Duration::from_millis(50));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+    // Scoped helpers so we keep the mutex critical section tiny.
+    let set_snapshot = |s: Option<ScanSnapshot>| {
+        if let Ok(mut g) = snapshot.lock() {
+            *g = s;
+        }
+    };
+    let update_last_tuned = |ev: &ScanEvent| {
+        if let Ok(mut g) = snapshot.lock() {
+            if let Some(snap) = g.as_mut() {
+                snap.last_tuned = Some(ev.clone());
+            }
+        }
+    };
 
     loop {
         tokio::select! {
@@ -161,6 +198,11 @@ async fn actor(
                             let total = chs.len();
                             info!(group = ?config.group, total, dwell_ms = config.dwell_ms, "scan starting");
                             let _ = events.send(ScanEvent::Started { total, group: config.group.clone() });
+                            set_snapshot(Some(ScanSnapshot {
+                                total,
+                                group: config.group.clone(),
+                                last_tuned: None,
+                            }));
                             state = Some(ScanState {
                                 config,
                                 channels: chs,
@@ -187,6 +229,7 @@ async fn actor(
                         info!("scan stopped by user");
                         let _ = events.send(ScanEvent::Stopped { reason: "user_stop".into() });
                         state = None;
+                        set_snapshot(None);
                     }
                 }
                 Some(ScanCmd::Skip) => {
@@ -198,6 +241,7 @@ async fn actor(
                 }
                 Some(ScanCmd::Shutdown(reply)) => {
                     state = None;
+                    set_snapshot(None);
                     let _ = reply.send(());
                     break;
                 }
@@ -209,9 +253,13 @@ async fn actor(
             },
             _ = ticker.tick() => {
                 if let Some(s) = &mut state {
-                    let done = step(s, &radio, latest_squelch, &events).await;
+                    let (done, fresh_tuned) = step(s, &radio, latest_squelch, &events).await;
+                    if let Some(ev) = fresh_tuned {
+                        update_last_tuned(&ev);
+                    }
                     if done {
                         state = None;
+                        set_snapshot(None);
                     }
                 }
             }
@@ -248,14 +296,16 @@ fn mode_to_urc(mode: &str) -> Option<ModMode> {
     }
 }
 
-/// Drives one tick of the state machine. Returns true when the scan is done
-/// (stop-on-hit fired).
+/// Drives one tick of the state machine. Returns `(done, fresh_tuned)`
+/// where `done` is true when the scan is finished (stop-on-hit fired), and
+/// `fresh_tuned` carries the `Tuned` event if the scanner just moved to a
+/// new channel (so callers can update the cross-client state snapshot).
 async fn step(
     s: &mut ScanState,
     radio: &Radio,
     latest_squelch: bool,
     events: &broadcast::Sender<ScanEvent>,
-) -> bool {
+) -> (bool, Option<ScanEvent>) {
     let now = Instant::now();
     match s.phase {
         Phase::NeedsTune => {
@@ -266,18 +316,20 @@ async fn step(
                 s.idx = (s.idx + 1) % s.channels.len();
                 s.phase = Phase::NeedsTune;
                 s.phase_started = now;
-                return false;
+                return (false, None);
             }
-            let _ = events.send(ScanEvent::Tuned {
+            let tuned = ScanEvent::Tuned {
                 channel_id: ch.id,
                 name: ch.name.clone(),
                 rx_mhz: ch.rx_hz as f64 / 1_000_000.0,
                 tx_mhz: ch.tx_hz as f64 / 1_000_000.0,
                 idx: s.idx,
                 total: s.channels.len(),
-            });
+            };
+            let _ = events.send(tuned.clone());
             s.phase = Phase::Settling;
             s.phase_started = now;
+            return (false, Some(tuned));
         }
         Phase::Settling => {
             if now.duration_since(s.phase_started) >= Duration::from_millis(s.config.settle_ms) {
@@ -292,7 +344,7 @@ async fn step(
                         let _ = events.send(ScanEvent::Stopped {
                             reason: format!("first_hit:{}", ch.name),
                         });
-                        return true;
+                        return (true, None);
                     }
                     s.phase = Phase::Dwelling;
                     s.phase_started = now;
@@ -315,7 +367,7 @@ async fn step(
             }
         }
     }
-    false
+    (false, None)
 }
 
 async fn tune_for_scan(radio: &Radio, ch: &Channel) -> Result<(), String> {

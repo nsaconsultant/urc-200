@@ -332,7 +332,32 @@ async fn ws_scan(ws: WebSocketUpgrade, State(state): State<AppState>) -> Respons
 
 async fn handle_scan(mut socket: WebSocket, scanner: ScannerHandle) {
     use tokio::sync::broadcast::error::RecvError;
+    // IMPORTANT: subscribe BEFORE reading the snapshot so we don't race a
+    // stop that happens between the two — if stop fires after we read the
+    // snapshot but before we subscribe, we'd miss the Stopped event and
+    // display a phantom scan. Subscribing first means any event emitted
+    // after the snapshot read is guaranteed to arrive.
     let mut events = scanner.subscribe();
+
+    // Catch up the new client with whatever's currently running. Broadcast
+    // doesn't replay history, so without this a browser that joins mid-scan
+    // sits on its idle "Start" button while another tab is actively scanning.
+    if let Some(snap) = scanner.current() {
+        let started = serde_json::json!({
+            "type": "started",
+            "total": snap.total,
+            "group": snap.group,
+        });
+        if socket.send(Message::Text(started.to_string())).await.is_err() {
+            return;
+        }
+        if let Some(tuned) = &snap.last_tuned {
+            let json = serde_json::to_string(tuned).unwrap_or_default();
+            if socket.send(Message::Text(json)).await.is_err() {
+                return;
+            }
+        }
+    }
     info!("scan ws client connected");
     loop {
         tokio::select! {
