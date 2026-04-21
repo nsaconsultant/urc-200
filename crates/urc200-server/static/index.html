@@ -51,13 +51,26 @@
   .lcd .dial-hint { font-size: 10px; color: var(--fg-dim); margin-top: 8px; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.6; }
   .badge { font-size: 11px; padding: 2px 8px; border: 1px solid currentColor; border-radius: 999px; opacity: 0.8; }
 
-  /* DSP sliders with twin number + range controls */
-  .dsp-row { display: grid; grid-template-columns: 52px 1fr 1fr 1fr; gap: 6px; align-items: center; font-size: 11px; margin-top: 3px; }
+  /* DSP sliders with twin checkbox + range + live-label controls.
+     minmax(0, 1fr) on each column prevents grid tracks from expanding beyond
+     their share — otherwise the sliders push the value labels off-card. */
+  .dsp-row { display: grid; grid-template-columns: 40px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); gap: 6px; align-items: center; font-size: 11px; margin-top: 3px; }
   .dsp-row .label { font-weight: 700; color: var(--fg-dim); }
-  .dsp-cell { display: flex; align-items: center; gap: 4px; }
+  .dsp-cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
   .dsp-cell input[type="checkbox"] { flex: 0 0 auto; }
-  .dsp-cell input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
-  .dsp-cell .val { min-width: 46px; text-align: right; font-variant-numeric: tabular-nums; color: var(--accent); font-size: 10px; }
+  .dsp-cell input[type="range"] { flex: 1 1 0; min-width: 0; width: 100%; accent-color: var(--accent); }
+  .dsp-cell .val { flex: 0 0 auto; min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; color: var(--accent); font-size: 10px; }
+  /* Phone: stack RX and TX as two separate blocks of three cells */
+  @media (max-width: 560px) {
+    .dsp-row { grid-template-columns: 1fr; gap: 4px; }
+    .dsp-row > div { display: flex; align-items: center; gap: 6px; }
+    .dsp-row .label { order: -1; }
+  }
+
+  /* Row-1 layout: desktop = Active Channel (narrow) + Audio (wider).
+     Mobile = single column stacked. */
+  .row-hero { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .row-hero { grid-template-columns: minmax(0,1fr) minmax(0,1.4fr); } }
 
   .preset-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
   .preset { background: var(--panel-hi); border: 1px solid var(--line); color: var(--fg); font-family: inherit; font-size: 13px; padding: 12px 4px; border-radius: 6px; cursor: pointer; transition: border-color 0.15s, background 0.15s; min-height: 52px; }
@@ -148,8 +161,9 @@
 
   <div class="tx-banner" id="tx-banner">⚠  ON AIR  ⚠  <span id="tx-banner-freq"></span></div>
 
-  <!-- Row 1: Active Channel (with status merged in) + Audio (wider) -->
-  <div class="row" style="margin-bottom:12px; grid-template-columns: minmax(0,1fr) minmax(0,1.4fr); gap: 12px;">
+  <!-- Row 1: Active Channel (with status merged in) + Audio (wider).
+       Collapses to a single stacked column below 900px (phones, narrow tablets). -->
+  <div class="row-hero" style="margin-bottom:12px">
     <div class="card">
       <h2>Active Channel</h2>
       <div class="lcd" id="lcd-dial" tabindex="0" title="scroll / drag / ↑↓ to tune · shift=×10 · ctrl=÷10">
