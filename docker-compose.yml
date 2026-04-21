@@ -10,8 +10,14 @@ services:
     # talk between its client library and sdrplay_apiService. Containers get
     # a private IPC namespace by default, so the in-container module would
     # create its own shm that the host daemon never sees → "no match" on
-    # enumerate. Sharing the IPC namespace with the host fixes it.
+    # enumerate. Sharing the IPC namespace with the host fixes the shm side.
     ipc: host
+    # And the client writes its own PID into a shm slot so the daemon can
+    # track live clients. Default container PID namespace is isolated, so
+    # the daemon sees a PID that doesn't exist on the host and rejects the
+    # client. `pid: host` puts the container in the host PID namespace so
+    # the client's PID is real from the daemon's point of view.
+    pid: host
     # USB-serial + USB-audio passthrough. When the PL2303 re-enumerates (USB
     # hiccup, container restart), Linux sometimes bumps the tty number. Pass
     # the first several through so the server can auto-pick whichever exists.
