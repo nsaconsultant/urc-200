@@ -171,6 +171,10 @@ fn capture_supervisor(
             }
             Err(e) => {
                 warn!(error = ?e, "sdr capture failed — retrying in 3s");
+                // Carry the latest retuned center over into the retry. Without
+                // this, an SDR read stall right after the user hit "SDR → radio"
+                // would bounce the viewer back to `initial.center_hz`.
+                cfg.center_hz = current_center.load(Ordering::Relaxed);
                 std::thread::sleep(Duration::from_secs(3));
             }
         }
