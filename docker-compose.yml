@@ -49,8 +49,6 @@ services:
       # other than an SDRplay (e.g. `driver=rtlsdr`).
       URC_SDR_DEVICE: driver=sdrplay
       URC_SDR_CENTER: "251950000"
-      # Temporary — crank SoapySDR verbosity so we see why enumerate fails.
-      SOAPY_SDR_LOG_LEVEL: DEBUG
     stop_grace_period: 5s
     restart: unless-stopped
 
