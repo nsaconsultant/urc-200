@@ -13,6 +13,12 @@ target/
 .env.local
 *.log
 
+# Local planning — kept out of the public repo for cleanliness
+ROADMAP.md
+NOTES.md
+TODO.md
+scratch/
+
 # Editor / OS detritus
 .DS_Store
 .idea/
