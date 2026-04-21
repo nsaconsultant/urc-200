@@ -121,6 +121,122 @@
   .ch-table tr.oob td { color: var(--muted); font-style: italic; }
   .ch-table tr.oob .oob-badge { font-size: 10px; color: var(--danger); border: 1px solid var(--danger); padding: 1px 5px; border-radius: 3px; margin-left: 4px; font-style: normal; }
   .ch-table tr.oob button[data-tune] { opacity: 0.35; cursor: not-allowed; }
+
+  /* Group sections: headers that expand/collapse the rows below them. */
+  .ch-group-header td {
+    background: #111820 !important;
+    padding: 8px 12px !important;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--fg);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    user-select: none;
+  }
+  .ch-group-header .chev { display: inline-block; width: 14px; color: var(--accent); transition: transform 0.15s; }
+  .ch-group-header.expanded .chev { transform: rotate(90deg); }
+  .ch-group-header .count { color: var(--muted); font-weight: normal; margin-left: 8px; }
+  .ch-group-header .group-del {
+    float: right;
+    background: transparent;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 2px 8px;
+    font-size: 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    font-family: inherit;
+  }
+  .ch-group-header .group-del:hover { background: rgba(229,72,72,0.1); }
+  .ch-group.collapsed tr:not(.ch-group-header) { display: none; }
+
+  /* Mobile: collapse each channel row into a stacked card. Hides the header,
+     re-orders cells via flex order, makes the Tune button a big tap target.
+     Desktop table layout is untouched. */
+  @media (max-width: 640px) {
+    .ch-table { display: block; }
+    .ch-table thead { display: none; }
+    .ch-table tbody { display: block; margin-bottom: 10px; }
+    /* Group header stays a horizontal bar on mobile (not a card). */
+    .ch-group-header { display: block !important; margin-bottom: 6px; }
+    .ch-group-header td {
+      display: block !important;
+      padding: 10px 12px !important;
+      border-radius: 6px;
+      border: 1px solid var(--line) !important;
+      background: #0f151b !important;
+    }
+    .ch-table tbody tr:not(.ch-group-header) {
+      display: flex;
+      flex-direction: column;
+      background: var(--panel-hi);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .ch-table tbody tr:not(.ch-group-header):hover td { background: transparent; }
+    .ch-table tr.oob { opacity: 0.75; }
+    .ch-table td {
+      display: block;
+      padding: 3px 0;
+      border: none;
+      text-align: left;
+      font-size: 13px;
+    }
+    .ch-table td.num { text-align: left; }
+    .ch-table td::before {
+      content: attr(data-label);
+      display: inline-block;
+      min-width: 52px;
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-right: 10px;
+    }
+    /* Name — card header */
+    .ch-table td.name-col {
+      order: -2;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 2px;
+    }
+    .ch-table tr.oob td.name-col { color: var(--muted); }
+    .ch-table td.name-col::before { content: ""; min-width: 0; margin: 0; }
+    /* Group badge under name */
+    .ch-table td[data-label="Group"] {
+      order: -1;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .ch-table td[data-label="Group"]::before { content: ""; min-width: 0; margin: 0; }
+    /* Hide empty cells (e.g. empty notes, "–" placeholders) on mobile */
+    .ch-table td[data-label="Notes"]:empty { display: none; }
+    /* Actions at the bottom of the card as a button row */
+    .ch-table td.actions {
+      order: 99;
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+    .ch-table td.actions::before { display: none; }
+    .ch-table td.actions button {
+      flex: 1;
+      padding: 10px 8px;
+      font-size: 13px;
+      min-height: 40px;
+    }
+    .ch-table td.actions button.danger { flex: 0 0 48px; }
+  }
   .ch-table .actions { text-align: right; }
   .ch-table .actions button { padding: 3px 8px; font-size: 11px; }
 
@@ -384,7 +500,7 @@
         <thead><tr>
           <th>Group</th><th>Name</th><th class="num">RX</th><th class="num">TX</th><th>Mode</th><th class="num">Tone</th><th>Notes</th><th class="actions"></th>
         </tr></thead>
-        <tbody id="ch-body"></tbody>
+        <!-- tbodies generated per-group by JS (loadChannels) -->
       </table>
     </div>
     <div class="muted" style="margin-top:6px; font-size:11px;">
@@ -1105,7 +1221,7 @@ document.getElementById("tune-btn").onclick = async () => {
 const groupFilter = document.getElementById("ch-group-filter");
 const importGroup = document.getElementById("ch-import-group");
 const existingGroups = document.getElementById("existing-groups");
-const chBody = document.getElementById("ch-body");
+const chTable = document.getElementById("ch-table");
 const chResult = document.getElementById("ch-import-result");
 
 async function loadGroups() {
@@ -1124,36 +1240,93 @@ async function loadGroups() {
   } catch (e) { logEvent("err", { source: "loadGroups", err: String(e) }); }
 }
 
+// Collapse state persisted per group. Default = collapsed so the library
+// doesn't open as a wall of 300+ channels.
+const COLLAPSE_KEY = "urc200:collapsed_groups";
+const readCollapsed = () => { try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "[]")); } catch { return new Set(); } };
+const writeCollapsed = (set) => { try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set])); } catch {} };
+
 async function loadChannels() {
   try {
     const group = groupFilter.value;
     const url = group ? `/api/channels?group=${encodeURIComponent(group)}` : "/api/channels";
     const r = await fetch(url);
     const chs = await r.json();
-    chBody.innerHTML = "";
+    // Group by group_name.
+    const byGroup = new Map();
     for (const c of chs) {
-      const oob = !isTunable(c.rx_hz) && !isTunable(c.tx_hz);
-      const tr = document.createElement("tr");
-      if (oob) tr.className = "oob";
-      const badge = oob ? ' <span class="oob-badge" title="outside your URC-200\'s bands">OOB</span>' : '';
-      tr.innerHTML = `
-        <td>${escape(c.group_name)}</td>
-        <td>${escape(c.name)}${badge}</td>
-        <td class="num">${(c.rx_hz/1e6).toFixed(4)}</td>
-        <td class="num">${(c.tx_hz/1e6).toFixed(4)}</td>
-        <td>${c.mode ? c.mode.toUpperCase() : "–"}</td>
-        <td class="num">${c.ctcss_hz ? c.ctcss_hz.toFixed(1) : "–"}</td>
-        <td>${escape(c.notes ?? "")}</td>
-        <td class="actions">
-          <button class="primary" data-tune="${c.id}" ${oob ? "disabled title='outside URC-200 band'" : ""}>Tune</button>
-          <button class="danger"  data-del="${c.id}" title="delete">×</button>
-        </td>`;
-      chBody.appendChild(tr);
+      if (!byGroup.has(c.group_name)) byGroup.set(c.group_name, []);
+      byGroup.get(c.group_name).push(c);
     }
-    chBody.querySelectorAll("button[data-tune]:not([disabled])").forEach(b =>
+    const collapsed = readCollapsed();
+    // If a group filter is active, expand only that group so the user sees their selection.
+    if (group) collapsed.delete(group);
+    // Clear previously-rendered tbodies but preserve the thead.
+    chTable.querySelectorAll("tbody").forEach(tb => tb.remove());
+    const groupNames = [...byGroup.keys()].sort((a, b) => a.localeCompare(b));
+    for (const g of groupNames) {
+      const rows = byGroup.get(g);
+      const tbody = document.createElement("tbody");
+      tbody.className = "ch-group" + (collapsed.has(g) ? " collapsed" : "");
+      tbody.dataset.group = g;
+
+      // Header row: colspan 8 to fill the columns. Click to toggle, × to delete.
+      const hdr = document.createElement("tr");
+      hdr.className = "ch-group-header" + (collapsed.has(g) ? "" : " expanded");
+      hdr.innerHTML = `
+        <td colspan="8">
+          <span class="chev">▸</span>
+          ${escape(g)}
+          <span class="count">${rows.length} channel${rows.length === 1 ? "" : "s"}</span>
+          <button class="group-del" data-group-del="${escape(g)}" title="delete entire group">delete group</button>
+        </td>`;
+      hdr.onclick = (ev) => {
+        if (ev.target.closest("[data-group-del]")) return; // delete button handles itself
+        const now = readCollapsed();
+        if (tbody.classList.toggle("collapsed")) { now.add(g); hdr.classList.remove("expanded"); }
+        else { now.delete(g); hdr.classList.add("expanded"); }
+        writeCollapsed(now);
+      };
+      hdr.querySelector("[data-group-del]").onclick = async (ev) => {
+        ev.stopPropagation();
+        const name = ev.currentTarget.dataset.groupDel;
+        if (!confirm(`Delete entire group "${name}" (${rows.length} channels)? This cannot be undone.`)) return;
+        try {
+          const r = await fetch(`/api/channels/groups/${encodeURIComponent(name)}`, { method: "DELETE" });
+          if (!r.ok) { logEvent("delete err", { status: r.status, group: name }); return; }
+          const j = await r.json();
+          logEvent("group deleted", { name, removed: j.deleted });
+          loadGroups(); loadChannels();
+        } catch (e) { logEvent("delete err", { e: String(e) }); }
+      };
+      tbody.appendChild(hdr);
+
+      // Channel rows.
+      for (const c of rows) {
+        const oob = !isTunable(c.rx_hz) && !isTunable(c.tx_hz);
+        const tr = document.createElement("tr");
+        if (oob) tr.className = "oob";
+        const badge = oob ? ' <span class="oob-badge" title="outside your URC-200\'s bands">OOB</span>' : '';
+        tr.innerHTML = `
+          <td data-label="Group">${escape(c.group_name)}</td>
+          <td class="name-col" data-label="">${escape(c.name)}${badge}</td>
+          <td class="num" data-label="RX">${(c.rx_hz/1e6).toFixed(4)}</td>
+          <td class="num" data-label="TX">${(c.tx_hz/1e6).toFixed(4)}</td>
+          <td data-label="Mode">${c.mode ? c.mode.toUpperCase() : "–"}</td>
+          <td class="num" data-label="Tone">${c.ctcss_hz ? c.ctcss_hz.toFixed(1) : "–"}</td>
+          <td data-label="Notes">${escape(c.notes ?? "")}</td>
+          <td class="actions" data-label="">
+            <button class="primary" data-tune="${c.id}" ${oob ? "disabled title='outside URC-200 band'" : ""}>Tune</button>
+            <button class="danger"  data-del="${c.id}" title="delete">×</button>
+          </td>`;
+        tbody.appendChild(tr);
+      }
+      chTable.appendChild(tbody);
+    }
+    // Tune / delete handlers (all tbodies share the same selectors).
+    chTable.querySelectorAll("button[data-tune]:not([disabled])").forEach(b =>
       b.onclick = async () => {
         await apiPost(`/api/channels/${b.dataset.tune}/tune`);
-        // After tuning, the server auto-set CTCSS to match. Refresh our dropdown.
         try {
           const j = await fetch("/api/tx/ctcss").then(r => r.json());
           if (j.enabled) {
@@ -1166,7 +1339,7 @@ async function loadChannels() {
         } catch {}
       }
     );
-    chBody.querySelectorAll("button[data-del]").forEach(b =>
+    chTable.querySelectorAll("button[data-del]").forEach(b =>
       b.onclick = async () => {
         if (!confirm("Delete this channel?")) return;
         await fetch(`/api/channels/${b.dataset.del}`, { method: "DELETE" });
