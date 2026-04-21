@@ -1,0 +1,21 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+
+# SQLite DB (channel library lives in a Docker volume; local runs make ./*.db)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Local config / scratch
+.env
+.env.local
+*.log
+
+# Editor / OS detritus
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

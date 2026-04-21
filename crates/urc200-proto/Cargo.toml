@@ -1,0 +1,11 @@
+[package]
+name = "urc200-proto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1"

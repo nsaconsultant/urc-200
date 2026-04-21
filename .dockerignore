@@ -1,0 +1,9 @@
+target/
+docs/
+CHECKLIST.md
+Dockerfile
+docker-compose.yml
+.git/
+.gitignore
+*.md
+/tmp/

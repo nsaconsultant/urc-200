@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1014">
+<title>URC-200 Head</title>
+<style>
+  :root {
+    --bg:        #0b1014;
+    --panel:     #141b22;
+    --panel-hi:  #1b232c;
+    --line:      #222b33;
+    --fg:        #d4ae4a;
+    --fg-dim:    #8a7333;
+    --muted:     #6c7177;
+    --accent:    #ffb300;
+    --danger:    #e54848;
+    --ok:        #5ad364;
+    --warn:      #f0a020;
+    --lcd:       #ffb300;
+    --lcd-bg:    #0a0d08;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+  body { min-height: 100dvh; padding-bottom: 190px; }
+  main { max-width: 1120px; margin: 0 auto; padding: 14px; }
+  h1 { color: var(--accent); letter-spacing: 0.08em; font-size: 18px; margin: 0; font-weight: 700; }
+  .row { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .row-21 { grid-template-columns: 2fr 1fr; } .row-3 { grid-template-columns: 1fr 1fr 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .card h2 { margin: 0 0 10px 0; font-size: 12px; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+
+  header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0 14px 0; flex-wrap: wrap; }
+  .status-pill { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #2a2f35; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); animation: pulse 2s ease-in-out infinite; }
+  .dot.bad { background: var(--danger); }
+  .dot.warn { background: var(--warn); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .tx-banner { background: linear-gradient(90deg, #e54848, #b93333); color: #fff; font-weight: 700; letter-spacing: 0.15em; padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; display: none; animation: tx-pulse 1s ease-in-out infinite; }
+  .tx-banner.show { display: block; }
+  @keyframes tx-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.75; } }
+
+  .lcd { background: var(--lcd-bg); color: var(--lcd); padding: 18px 16px; border-radius: 6px; text-shadow: 0 0 6px rgba(255, 179, 0, 0.4); border: 1px solid #1f1908; }
+  .lcd .primary { font-size: 34px; font-weight: 700; letter-spacing: 0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .lcd .secondary { font-size: 13px; color: var(--fg-dim); margin-top: 6px; }
+  .lcd .badge-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .badge { font-size: 11px; padding: 2px 8px; border: 1px solid currentColor; border-radius: 999px; opacity: 0.8; }
+
+  .preset-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .preset { background: var(--panel-hi); border: 1px solid var(--line); color: var(--fg); font-family: inherit; font-size: 13px; padding: 12px 4px; border-radius: 6px; cursor: pointer; transition: border-color 0.15s, background 0.15s; min-height: 52px; }
+  .preset:hover { border-color: var(--accent); }
+  .preset.active { border-color: var(--accent); background: rgba(255,179,0,0.1); color: var(--accent); }
+  .save-arm .preset { border-color: var(--warn); background: rgba(240,160,32,0.07); animation: save-pulse 1s ease-in-out infinite; }
+  @keyframes save-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(240,160,32,0); } 50% { box-shadow: 0 0 0 2px rgba(240,160,32,0.3); } }
+  .preset .n { font-size: 16px; font-weight: 700; display: block; }
+
+  .controls { display: grid; gap: 10px; grid-template-columns: 1fr; }
+  @media (min-width: 640px) { .controls { grid-template-columns: 1fr 1fr; } }
+  .segmented { display: flex; gap: 0; background: var(--panel-hi); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .segmented button { flex: 1; background: none; border: 0; color: var(--fg); padding: 10px; font-family: inherit; font-size: 13px; cursor: pointer; }
+  .segmented button.active { background: var(--accent); color: #000; font-weight: 700; }
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+  .slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
+
+  input[type="text"], input[type="number"], select, textarea {
+    background: var(--panel-hi); color: var(--fg); border: 1px solid var(--line); border-radius: 4px;
+    padding: 7px 10px; font-family: inherit; font-size: 13px; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 3px; }
+
+  button.bare, button.primary, button.danger {
+    background: var(--panel-hi); border: 1px solid var(--line); color: var(--fg);
+    padding: 8px 14px; font-family: inherit; font-size: 13px; border-radius: 4px;
+    cursor: pointer; transition: border-color 0.1s, background 0.1s;
+  }
+  button.bare:hover, button.primary:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+  button.primary:hover { background: #ffc740; }
+  button.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+  button.danger:hover { background: rgba(229,72,72,0.1); }
+
+  .meter { height: 8px; background: var(--panel-hi); border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
+  .meter-fill { height: 100%; background: linear-gradient(90deg, #5ad364 0%, #5ad364 60%, #f0a020 60%, #f0a020 85%, #e54848 85%); width: 0%; transition: width 0.12s linear; }
+
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13px; }
+  .kv .k { color: var(--muted); }
+  .kv .v { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .ch-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ch-table th, .ch-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+  .ch-table th { color: var(--muted); font-weight: normal; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .ch-table tr:hover td { background: var(--panel-hi); }
+  .ch-table td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  .ch-table tr.oob td { color: var(--muted); font-style: italic; }
+  .ch-table tr.oob .oob-badge { font-size: 10px; color: var(--danger); border: 1px solid var(--danger); padding: 1px 5px; border-radius: 3px; margin-left: 4px; font-style: normal; }
+  .ch-table tr.oob button[data-tune] { opacity: 0.35; cursor: not-allowed; }
+  .ch-table .actions { text-align: right; }
+  .ch-table .actions button { padding: 3px 8px; font-size: 11px; }
+
+  #log { max-height: 180px; overflow: auto; font-size: 11px; line-height: 1.55; }
+  .ev { padding: 2px 0; border-bottom: 1px solid var(--line); }
+  .ev .t { color: var(--muted); }
+  .ev .k { color: var(--accent); }
+  .muted { color: var(--muted); font-size: 12px; }
+
+  /* ===== PTT dock (sticky bottom) ===== */
+  .ptt-dock { position: fixed; bottom: 0; left: 0; right: 0; background: linear-gradient(180deg, rgba(11,16,20,0.8), rgba(11,16,20,1) 60%); border-top: 1px solid var(--line); padding: 12px 14px calc(12px + env(safe-area-inset-bottom)) 14px; backdrop-filter: blur(8px); z-index: 10; }
+  .ptt-dock-inner { max-width: 1120px; margin: 0 auto; display: flex; gap: 12px; align-items: stretch; }
+  .lock-toggle { background: var(--danger); color: #fff; border: 0; padding: 0 18px; border-radius: 6px; font-family: inherit; font-weight: 700; letter-spacing: 0.1em; cursor: pointer; font-size: 12px; min-width: 140px; }
+  .lock-toggle.armed { background: var(--ok); color: #000; }
+  .ptt-pad { flex: 1; border-radius: 8px; text-align: center; padding: 24px 12px; font-weight: 700; letter-spacing: 0.15em; font-size: 16px; user-select: none; -webkit-user-select: none; cursor: not-allowed; transition: background 0.1s, border-color 0.1s; }
+  .ptt-pad.locked { background: #1a1a1a; border: 2px solid #333; color: #555; }
+  .ptt-pad.armed { background: linear-gradient(180deg, #252b32, #161a1f); border: 2px solid var(--ok); color: var(--ok); cursor: pointer; }
+  .ptt-pad.keyed { background: linear-gradient(180deg, #b93333, #7a1e1e); border: 2px solid var(--danger); color: #fff; animation: tx-pulse 0.6s ease-in-out infinite; }
+  .ptt-pad .note { font-size: 10px; letter-spacing: 0.08em; color: var(--muted); margin-top: 6px; font-weight: normal; }
+  .ptt-pad.armed .note { color: var(--fg-dim); }
+  .ptt-status { font-size: 11px; color: var(--muted); padding: 6px 0 0 0; text-align: center; }
+  @media (max-width: 600px) {
+    .ptt-dock-inner { flex-direction: column; }
+    .lock-toggle { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>URC-200 HEAD</h1>
+    <div class="status-pill">
+      <span class="dot" id="tel-dot"></span><span id="tel-state">telemetry</span>
+      <span class="dot" id="ctl-dot"></span><span id="ctl-state">control</span>
+      <span class="dot" id="aud-dot"></span><span id="aud-state">audio</span>
+    </div>
+  </header>
+
+  <div class="tx-banner" id="tx-banner">⚠  ON AIR  ⚠  <span id="tx-banner-freq"></span></div>
+
+  <!-- Row 1: Active Channel (with status merged in) + Audio (wider) -->
+  <div class="row" style="margin-bottom:12px; grid-template-columns: minmax(0,1fr) minmax(0,1.4fr); gap: 12px;">
+    <div class="card">
+      <h2>Active Channel</h2>
+      <div class="lcd">
+        <div class="primary" id="freq-primary">—.————</div>
+        <div class="secondary" id="freq-secondary">—</div>
+        <div class="badge-row" id="badges"></div>
+      </div>
+      <div class="kv" style="margin-top:10px">
+        <span class="k">synth</span><span class="v" id="v-synth">–</span>
+        <span class="k">squelch</span><span class="v" id="v-sq">–</span>
+        <span class="k">rssi</span><span class="v" id="v-rssi">–</span>
+        <span class="k">mode</span><span class="v" id="v-mode">–</span>
+        <span class="k">temp</span><span class="v" id="v-temp">–</span>
+        <span class="k">options</span><span class="v" id="v-opts">–</span>
+      </div>
+      <div style="margin-top:8px">
+        <div class="muted" style="margin-bottom:4px">RSSI</div>
+        <div class="meter"><div class="meter-fill" id="rssi-bar"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Audio</h2>
+      <div style="margin-bottom:10px">
+        <div class="muted">Computer speaker (UAA RX stream)</div>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:5px;">
+          <button id="aud-mute" class="bare" style="min-width:92px">Unmute</button>
+          <input type="range" id="aud-volume" min="0" max="100" value="80" style="flex:1; accent-color: var(--accent);">
+          <span id="aud-volume-val" class="muted" style="min-width:34px; text-align:right">80</span>
+        </div>
+        <div class="meter" style="margin-top:6px"><div class="meter-fill" id="aud-meter"></div></div>
+        <div style="display:flex; gap:8px; margin-top:6px; align-items:center">
+          <button id="aud-test" class="bare" style="font-size:11px">▶ test tone</button>
+          <span class="muted" id="aud-state-label" style="font-size:11px">ctx: —</span>
+        </div>
+      </div>
+      <div>
+        <div class="muted">Radio internal speaker</div>
+        <div class="segmented" id="seg-speaker" style="margin-top:5px">
+          <button data-v="off">OFF</button><button data-v="on">ON</button>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <div class="muted">CTCSS tone encoder (software mix on TX mic)</div>
+        <div style="display:flex; gap:6px; margin-top:5px; align-items:center;">
+          <select id="ctcss-tone" style="flex:1">
+            <option value="">Off</option>
+            <option value="67.0">67.0</option><option value="71.9">71.9</option><option value="74.4">74.4</option>
+            <option value="77.0">77.0</option><option value="79.7">79.7</option><option value="82.5">82.5</option>
+            <option value="85.4">85.4</option><option value="88.5">88.5</option><option value="91.5">91.5</option>
+            <option value="94.8">94.8</option><option value="97.4">97.4</option><option value="100.0">100.0</option>
+            <option value="103.5">103.5</option><option value="107.2">107.2</option><option value="110.9">110.9</option>
+            <option value="114.8">114.8</option><option value="118.8">118.8</option><option value="123.0">123.0</option>
+            <option value="127.3">127.3</option><option value="131.8">131.8</option><option value="136.5">136.5</option>
+            <option value="141.3">141.3</option><option value="146.2">146.2</option><option value="151.4">151.4</option>
+            <option value="156.7">156.7</option><option value="159.8">159.8</option><option value="162.2">162.2</option>
+            <option value="165.5">165.5</option><option value="167.9">167.9</option><option value="171.3">171.3</option>
+            <option value="173.8">173.8</option><option value="177.3">177.3</option><option value="179.9">179.9</option>
+            <option value="183.5">183.5</option><option value="186.2">186.2</option><option value="189.9">189.9</option>
+            <option value="192.8">192.8</option><option value="196.6">196.6</option><option value="199.5">199.5</option>
+            <option value="203.5">203.5</option><option value="206.5">206.5</option><option value="210.7">210.7</option>
+            <option value="218.1">218.1</option><option value="225.7">225.7</option><option value="229.1">229.1</option>
+            <option value="233.6">233.6</option><option value="241.8">241.8</option><option value="250.3">250.3</option>
+            <option value="254.1">254.1</option>
+          </select>
+          <label class="muted" style="font-size:11px; white-space:nowrap">level</label>
+          <input type="number" id="ctcss-amp" min="500" max="20000" step="500" value="3200" style="width:80px">
+        </div>
+        <div class="muted" id="ctcss-state" style="font-size:10px; margin-top:3px">off</div>
+      </div>
+      <div style="margin-top:12px; border-top:1px solid var(--line); padding-top:10px;">
+        <div class="muted" style="margin-bottom:6px">DSP — applied server-side (biquad HPF → noise gate → LPF)</div>
+        <div style="display:grid; grid-template-columns: 60px 1fr 1fr 1fr; gap: 6px; align-items:center; font-size:11px;">
+          <div></div>
+          <div class="muted">HPF (Hz)</div>
+          <div class="muted">LPF (Hz)</div>
+          <div class="muted">Gate (dB)</div>
+          <div class="muted" style="font-weight:700">RX</div>
+          <div><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="rx-hp-on" checked><input type="number" id="rx-hp-fc" value="300" min="20" max="8000" step="10" style="width:70px"></label></div>
+          <div><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="rx-lp-on" checked><input type="number" id="rx-lp-fc" value="3000" min="200" max="20000" step="50" style="width:80px"></label></div>
+          <div><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="rx-gate-on"><input type="number" id="rx-gate-db" value="-40" min="-80" max="-10" step="1" style="width:60px"></label></div>
+          <div class="muted" style="font-weight:700">TX</div>
+          <div><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="tx-hp-on" checked><input type="number" id="tx-hp-fc" value="300" min="20" max="8000" step="10" style="width:70px"></label></div>
+          <div><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="tx-lp-on" checked><input type="number" id="tx-lp-fc" value="3000" min="200" max="20000" step="50" style="width:80px"></label></div>
+          <div><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="tx-gate-on"><input type="number" id="tx-gate-db" value="-40" min="-80" max="-10" step="1" style="width:60px"></label></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Manual Tune + Preset grid -->
+  <div class="row row-21" style="margin-bottom:12px">
+    <div class="card">
+      <h2>Manual Tune</h2>
+      <div style="display:grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: flex-end;">
+        <div>
+          <label>RX (MHz)</label>
+          <input type="text" id="tune-rx" placeholder="147.240" inputmode="decimal">
+        </div>
+        <div>
+          <label>TX (MHz)</label>
+          <input type="text" id="tune-tx" placeholder="147.840" inputmode="decimal">
+        </div>
+        <button id="tune-btn" class="primary">Tune</button>
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 10px;">
+        <div>
+          <label>Mode</label>
+          <select id="tune-mode">
+            <option value="">(unchanged)</option>
+            <option value="am">AM</option>
+            <option value="fm">FM</option>
+          </select>
+        </div>
+        <div>
+          <label>Step</label>
+          <select id="tune-step">
+            <option value="5k">5 kHz</option>
+            <option value="12.5k">12.5 kHz</option>
+            <option value="25k">25 kHz</option>
+          </select>
+        </div>
+        <div>
+          <label>Simplex</label>
+          <button id="simplex-btn" class="bare" style="width:100%">RX→TX</button>
+        </div>
+      </div>
+      <div class="muted" style="margin-top:8px; font-size:11px;">
+        writes to the current radio preset (RAM); power-cycle reverts. Use <code>POST /store</code> to persist.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Radio Presets (P0–P9)</h2>
+      <div class="preset-grid" id="preset-grid"></div>
+      <div style="margin-top:10px; display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+        <button id="save-arm-btn" class="bare">Save to preset…</button>
+        <button id="store-btn" class="bare">Quick save (Q)</button>
+      </div>
+      <div id="save-hint" class="muted" style="margin-top:6px; font-size:11px;">
+        Tip: tune first (RX/TX/mode), then <b>Save to preset…</b> and click a slot — your current tune is written to that slot's EEPROM.
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: Radio-side controls -->
+  <div class="card" style="margin-bottom:12px">
+    <h2>Radio Controls</h2>
+    <div class="controls">
+      <div><div class="muted">Lamp</div>
+        <div class="segmented" id="seg-lamp">
+          <button data-v="off">OFF</button><button data-v="lo">LO</button><button data-v="med">MED</button><button data-v="hi">HI</button>
+        </div></div>
+      <div><div class="muted">Modulation (TX+RX)</div>
+        <div class="segmented" id="seg-mod">
+          <button data-v="am">AM</button><button data-v="fm">FM</button>
+        </div></div>
+      <div><div class="muted">TX Power</div>
+        <div class="segmented" id="seg-power">
+          <button data-v="lo">LO</button><button data-v="med">MED</button><button data-v="hi">HI</button>
+        </div></div>
+      <div><div class="muted">Squelch: <span id="sq-val">128</span>/255</div>
+        <div class="slider-row">
+          <input type="range" min="0" max="255" value="128" id="sq-slider">
+        </div></div>
+    </div>
+  </div>
+
+  <!-- Row 4: Channel Library -->
+  <div class="card" style="margin-bottom:12px">
+    <h2>Channel Library</h2>
+    <div style="display:grid; grid-template-columns: 1fr 1fr auto auto; gap: 10px; align-items: flex-end; margin-bottom:12px;">
+      <div>
+        <label>Filter by group</label>
+        <select id="ch-group-filter"><option value="">(all groups)</option></select>
+      </div>
+      <div>
+        <label>New / import group name</label>
+        <input type="text" id="ch-import-group" placeholder="Aviation" list="existing-groups">
+        <datalist id="existing-groups"></datalist>
+      </div>
+      <button id="ch-import-btn" class="bare">Import CSV…</button>
+      <button id="ch-reload-btn" class="bare">Reload</button>
+    </div>
+    <input type="file" id="ch-import-file" accept=".csv,text/csv" style="display:none">
+    <div id="ch-import-result" class="muted" style="margin-bottom:8px"></div>
+    <div style="max-height:320px; overflow:auto; border:1px solid var(--line); border-radius:6px;">
+      <table class="ch-table" id="ch-table">
+        <thead><tr>
+          <th>Group</th><th>Name</th><th class="num">RX</th><th class="num">TX</th><th>Mode</th><th class="num">Tone</th><th>Notes</th><th class="actions"></th>
+        </tr></thead>
+        <tbody id="ch-body"></tbody>
+      </table>
+    </div>
+    <div class="muted" style="margin-top:6px; font-size:11px;">
+      supports: satcom (Downlink/Uplink/Name), ham (Receive Frequency/Transmit Frequency/Name/Mode/Step), canonical (name/rx_mhz/tx_mhz).
+    </div>
+  </div>
+
+  <!-- Row 5: Event log -->
+  <div class="card">
+    <h2>Recent events</h2>
+    <div id="log"></div>
+  </div>
+</main>
+
+<!-- Sticky PTT dock -->
+<div class="ptt-dock">
+  <div class="ptt-dock-inner">
+    <button id="lock-toggle" class="lock-toggle">PTT LOCK: ON</button>
+    <div id="ptt-pad" class="ptt-pad locked">
+      PTT — LOCKED
+      <div class="note" id="ptt-note">toggle the red button to arm</div>
+    </div>
+  </div>
+  <div class="ptt-status" id="ptt-status"></div>
+</div>
+
+<script>
+// =============================================================
+// WebSockets
+// =============================================================
+const wsProto = location.protocol === "https:" ? "wss" : "ws";
+function mkStatusEls(prefix) {
+  return { dot: document.getElementById(`${prefix}-dot`), state: document.getElementById(`${prefix}-state`), okLabel: prefix };
+}
+function mkWS(path, onMsg, stateEls, opts = {}) {
+  const h = { ws: null, send: null };
+  function open() {
+    const ws = new WebSocket(`${wsProto}://${location.host}${path}`);
+    if (opts.binary) ws.binaryType = "arraybuffer";
+    h.ws = ws;
+    h.send = (obj) => { if (ws.readyState === 1) ws.send(typeof obj === "string" ? obj : JSON.stringify(obj)); };
+    ws.onopen = () => { stateEls.dot.className = "dot ok"; stateEls.state.textContent = stateEls.okLabel; if (opts.onOpen) opts.onOpen(h); };
+    ws.onclose = () => { stateEls.dot.className = "dot bad"; stateEls.state.textContent = `${stateEls.okLabel} — retrying`; setTimeout(open, 1000); };
+    ws.onerror = () => { stateEls.dot.className = "dot bad"; };
+    ws.onmessage = (e) => { onMsg(e); };
+  }
+  open();
+  return h;
+}
+
+// =============================================================
+// Logging
+// =============================================================
+const logEl = document.getElementById("log");
+function logEvent(kind, obj) {
+  const r = document.createElement("div");
+  r.className = "ev";
+  const body = Object.entries(obj || {}).filter(([k]) => k !== "type").map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`).join(" ");
+  r.innerHTML = `<span class="t">${new Date().toLocaleTimeString()}</span> <span class="k">${kind}</span> ${body}`;
+  logEl.prepend(r);
+  while (logEl.childNodes.length > 50) logEl.removeChild(logEl.lastChild);
+}
+
+// =============================================================
+// Telemetry
+// =============================================================
+mkWS("/api/ws/telemetry", (e) => {
+  let ev; try { ev = JSON.parse(e.data); } catch { return; }
+  switch (ev.type) {
+    case "rssi":
+      document.getElementById("v-rssi").textContent = `${ev.value}/255`;
+      document.getElementById("rssi-bar").style.width = `${(ev.value/255)*100}%`;
+      break;
+    case "squelch":
+      document.getElementById("v-sq").textContent = ev.broken ? "BROKEN" : "closed";
+      document.getElementById("v-sq").style.color = ev.broken ? "var(--ok)" : "var(--muted)";
+      break;
+    case "synth_lock":
+      document.getElementById("v-synth").textContent = ev.locked ? "locked" : "UNLOCKED";
+      document.getElementById("v-synth").style.color = ev.locked ? "var(--ok)" : "var(--danger)";
+      break;
+    case "mode": {
+      const m = ev.mode;
+      document.getElementById("v-mode").textContent = m;
+      document.getElementById("tx-banner").classList.toggle("show", m === "transmit" || m === "beacon");
+      break;
+    }
+    case "general": {
+      document.getElementById("v-temp").textContent = ev.overtemp ? "OVER" : "ok";
+      document.getElementById("v-temp").style.color = ev.overtemp ? "var(--danger)" : "var(--muted)";
+      const opts = ev.ebn30 && ev.ebn400 ? "30-90 + 400" : ev.ebn30 ? "30-90" : ev.ebn400 ? "400" : "none";
+      document.getElementById("v-opts").textContent = opts;
+      renderBadges({ text_mode: ev.text_mode, lamp: ev.lamp, speaker_on: ev.speaker_on });
+      syncSegmented("seg-lamp", ev.lamp);
+      syncSegmented("seg-speaker", ev.speaker_on ? "on" : "off");
+      break;
+    }
+    case "preset": {
+      activeSnapshot = ev;
+      document.getElementById("freq-primary").textContent = ev.rx_mhz.toFixed(4);
+      const simplex = Math.abs(ev.tx_mhz - ev.rx_mhz) < 0.0005;
+      document.getElementById("freq-secondary").textContent = simplex
+        ? `simplex · ${ev.mod_tx_rx.toUpperCase()} · P${ev.preset}`
+        : `tx ${ev.tx_mhz.toFixed(4)} · ${ev.mod_tx_rx.toUpperCase()} · P${ev.preset}`;
+      document.getElementById("tx-banner-freq").textContent = ev.tx_mhz.toFixed(4) + " MHz";
+      document.querySelectorAll(".preset").forEach(b => b.classList.toggle("active", parseInt(b.dataset.n, 10) === ev.preset));
+      syncSegmented("seg-mod", ev.mod_tx_rx);
+      syncSegmented("seg-power", ev.power);
+      break;
+    }
+    case "error": logEvent("err", ev); return;
+  }
+  if (ev.type !== "rssi") logEvent(ev.type, ev);
+}, mkStatusEls("tel"));
+
+function renderBadges(g) {
+  const el = document.getElementById("badges");
+  el.innerHTML = "";
+  const bs = [];
+  if (g.text_mode) bs.push(g.text_mode.toUpperCase());
+  if (g.lamp) bs.push("lamp " + g.lamp);
+  bs.push("radio-spk " + (g.speaker_on ? "on" : "off"));
+  for (const t of bs) { const b = document.createElement("span"); b.className = "badge"; b.textContent = t; el.appendChild(b); }
+}
+function syncSegmented(id, value) {
+  document.querySelectorAll(`#${id} button`).forEach(b => b.classList.toggle("active", b.dataset.v === value));
+}
+
+// =============================================================
+// Control WS (PTT)
+// =============================================================
+let pttOwner = null;
+let pttIsMine = false;
+let heartbeatInterval = null;
+
+const control = mkWS("/api/ws/control", (e) => {
+  let ev; try { ev = JSON.parse(e.data); } catch { return; }
+  switch (ev.type) {
+    case "welcome":
+      control.send({ type: "hello", label: `${navigator.platform} browser` });
+      logEvent("welcome", ev);
+      break;
+    case "ptt_granted":
+      pttIsMine = true;
+      document.getElementById("ptt-pad").classList.add("keyed");
+      document.getElementById("ptt-status").textContent = "YOU ARE KEYED";
+      startHeartbeats();
+      logEvent("ptt granted", ev);
+      break;
+    case "ptt_denied":
+      logEvent("ptt denied", ev);
+      document.getElementById("ptt-status").textContent = `DENIED: ${ev.reason}${ev.owner ? ` (owned by ${ev.owner})` : ""}`;
+      break;
+    case "ptt_acquired":
+      pttOwner = ev.owner;
+      document.getElementById("ptt-status").textContent = pttIsMine ? "YOU ARE KEYED" : `On air: ${ev.owner}`;
+      logEvent("ptt acquired", ev);
+      break;
+    case "ptt_released":
+      if (pttIsMine) {
+        pttIsMine = false;
+        stopHeartbeats();
+        document.getElementById("ptt-pad").classList.remove("keyed");
+      }
+      pttOwner = null;
+      document.getElementById("ptt-status").textContent = `released (${ev.reason})`;
+      logEvent("ptt released", ev);
+      break;
+    case "error": logEvent("ctl err", ev); break;
+  }
+}, mkStatusEls("ctl"));
+
+function startHeartbeats() {
+  stopHeartbeats();
+  heartbeatInterval = setInterval(() => {
+    if (pttIsMine) control.send({ type: "ptt_heartbeat" });
+  }, 150);
+}
+function stopHeartbeats() {
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+}
+
+// =============================================================
+// TX audio (browser mic → server → UAA playback → radio mic input)
+// =============================================================
+async function ensureMic() {
+  if (micNode) return true;
+  try {
+    if (!audioCtx) ensureAudio();
+    if (audioCtx.state === "suspended") await audioCtx.resume();
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, sampleRate: 48000, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+    const workletCode = `
+      class MicCap extends AudioWorkletProcessor {
+        constructor() { super(); this.buf = new Int16Array(${TX_FRAME_SAMPLES}); this.pos = 0; }
+        process(inputs) {
+          const ch = inputs[0] && inputs[0][0];
+          if (!ch) return true;
+          for (let i = 0; i < ch.length; i++) {
+            let s = Math.max(-1, Math.min(1, ch[i]));
+            this.buf[this.pos++] = s < 0 ? s * 32768 : s * 32767;
+            if (this.pos >= this.buf.length) {
+              this.port.postMessage(this.buf.slice().buffer, [this.buf.slice().buffer]);
+              this.pos = 0;
+            }
+          }
+          return true;
+        }
+      }
+      registerProcessor('mic-cap', MicCap);
+    `;
+    const url = URL.createObjectURL(new Blob([workletCode], { type: "application/javascript" }));
+    await audioCtx.audioWorklet.addModule(url);
+    const src = audioCtx.createMediaStreamSource(micStream);
+    micNode = new AudioWorkletNode(audioCtx, "mic-cap");
+    micNode.port.onmessage = (e) => {
+      // Only send while WE hold PTT. Belt-and-suspenders — the server can't
+      // actually transmit if the radio isn't keyed, but don't waste bandwidth.
+      if (!pttIsMine || !txReady || !txWs || txWs.readyState !== 1) return;
+      txWs.send(e.data);
+    };
+    src.connect(micNode);
+    // Deliberately don't connect to destination — avoid self-echo.
+    logEvent("mic ready", { rate: audioCtx.sampleRate, tracks: micStream.getAudioTracks().length });
+    return true;
+  } catch (e) {
+    logEvent("mic err", { e: String(e) });
+    return false;
+  }
+}
+
+function startTxWs() {
+  if (txWs && txWs.readyState <= 1) return;
+  const ws = new WebSocket(`${wsProto}://${location.host}/api/ws/audio/tx`);
+  ws.binaryType = "arraybuffer";
+  ws.onopen = () => { logEvent("tx ws open", {}); };
+  ws.onmessage = (e) => {
+    if (typeof e.data === "string") {
+      try {
+        const hdr = JSON.parse(e.data);
+        if (hdr.type === "audio_tx_header") { txReady = true; logEvent("tx ready", hdr); }
+      } catch {}
+    }
+  };
+  ws.onclose = () => { txReady = false; logEvent("tx ws closed", {}); setTimeout(startTxWs, 1500); };
+  ws.onerror = () => { txReady = false; };
+  txWs = ws;
+}
+
+// PTT lock + pad
+const lockBtn = document.getElementById("lock-toggle");
+const pttPad = document.getElementById("ptt-pad");
+const pttNote = document.getElementById("ptt-note");
+let pttArmed = false;
+
+lockBtn.onclick = async () => {
+  pttArmed = !pttArmed;
+  if (pttArmed) {
+    lockBtn.classList.add("armed");
+    lockBtn.textContent = "PTT LOCK: OFF";
+    pttPad.classList.remove("locked"); pttPad.classList.add("armed");
+    pttPad.firstChild.nodeValue = "PTT — TAP & HOLD";
+    pttNote.textContent = "press-and-hold to transmit · spacebar works too";
+    // Prepare TX path — get mic permission (needs user gesture) and open the
+    // TX WebSocket. Done once; subsequent arms just reuse them.
+    const ok = await ensureMic();
+    if (ok) startTxWs();
+  } else {
+    if (pttIsMine) stopPtt();
+    lockBtn.classList.remove("armed");
+    lockBtn.textContent = "PTT LOCK: ON";
+    pttPad.classList.remove("armed", "keyed"); pttPad.classList.add("locked");
+    pttPad.firstChild.nodeValue = "PTT — LOCKED";
+    pttNote.textContent = "toggle the red button to arm";
+    document.getElementById("ptt-status").textContent = "";
+  }
+};
+
+function startPtt() { if (!pttArmed || pttIsMine) return; control.send({ type: "ptt_start" }); }
+function stopPtt()  { if (pttIsMine) control.send({ type: "ptt_stop" }); }
+
+pttPad.addEventListener("pointerdown", (e) => { if (!pttArmed) return; e.preventDefault(); startPtt(); });
+pttPad.addEventListener("pointerup",   (e) => { if (!pttArmed) return; e.preventDefault(); stopPtt(); });
+pttPad.addEventListener("pointercancel", () => stopPtt());
+pttPad.addEventListener("pointerleave", () => stopPtt());
+
+// Spacebar PTT
+let spaceDown = false;
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space" && !spaceDown && pttArmed && document.activeElement?.tagName !== "INPUT") {
+    spaceDown = true; e.preventDefault(); startPtt();
+  }
+});
+window.addEventListener("keyup", (e) => {
+  if (e.code === "Space" && spaceDown) { spaceDown = false; stopPtt(); }
+});
+
+// =============================================================
+// Audio RX (UAA → WebAudio)
+// =============================================================
+let audioCtx = null;
+let audioGain = null;
+let audioSampleRate = 48000;
+let audioNextStart = 0;
+let audioMuted = true;
+let audioFramesRx = 0;
+let audioPeakLast = 0;
+let audioLoggedFirstFrame = false;
+
+// TX audio
+let micStream = null;
+let micNode = null;
+let txWs = null;
+let txReady = false;
+const TX_FRAME_SAMPLES = 480; // 10 ms at 48 kHz
+
+const audDot = document.getElementById("aud-dot");
+const audState = document.getElementById("aud-state");
+const muteBtn = document.getElementById("aud-mute");
+const volSlider = document.getElementById("aud-volume");
+const volVal = document.getElementById("aud-volume-val");
+
+function ensureAudio() {
+  if (audioCtx) return;
+  audioCtx = new AudioContext({ latencyHint: "interactive" });
+  audioGain = audioCtx.createGain();
+  audioGain.gain.value = 0; // start muted
+  audioGain.connect(audioCtx.destination);
+}
+
+muteBtn.onclick = async () => {
+  ensureAudio();
+  if (audioCtx.state === "suspended") await audioCtx.resume();
+  audioMuted = !audioMuted;
+  muteBtn.textContent = audioMuted ? "Unmute" : "Mute";
+  audioGain.gain.value = audioMuted ? 0 : (parseInt(volSlider.value, 10) / 100);
+  logEvent("audio", {
+    muted: audioMuted,
+    gain: audioGain.gain.value,
+    ctx_state: audioCtx.state,
+    sample_rate: audioCtx.sampleRate,
+    stream_rate: audioSampleRate,
+  });
+};
+volSlider.oninput = () => {
+  volVal.textContent = volSlider.value;
+  if (audioGain && !audioMuted) audioGain.gain.value = parseInt(volSlider.value, 10) / 100;
+};
+
+function startAudioWS() {
+  const ws = new WebSocket(`${wsProto}://${location.host}/api/ws/audio/rx`);
+  ws.binaryType = "arraybuffer";
+  ws.onopen  = () => { audDot.className = "dot ok"; audState.textContent = "audio"; };
+  ws.onclose = () => { audDot.className = "dot bad"; audState.textContent = "audio — retrying"; setTimeout(startAudioWS, 1000); };
+  ws.onerror = () => { audDot.className = "dot bad"; };
+  ws.onmessage = (e) => {
+    if (typeof e.data === "string") {
+      try {
+        const hdr = JSON.parse(e.data);
+        if (hdr.type === "audio_header") {
+          audioSampleRate = hdr.sample_rate || 48000;
+          logEvent("audio_header", hdr);
+        }
+      } catch {}
+      return;
+    }
+    audioFramesRx++;
+    const pcm = new Int16Array(e.data);
+    // Track peak for the level meter even when muted — so the user can see the stream is live.
+    let peak = 0;
+    for (let i = 0; i < pcm.length; i++) { const a = Math.abs(pcm[i]); if (a > peak) peak = a; }
+    audioPeakLast = peak;
+    if (!audioLoggedFirstFrame) {
+      audioLoggedFirstFrame = true;
+      logEvent("audio first-frame", { samples: pcm.length, peak, rate: audioSampleRate });
+    }
+    // Suppress RX playback while we're transmitting — otherwise the UAA's
+    // internal codec sidetone loops our TX audio back into the speakers and
+    // the mic picks it up → feedback screech (worst with CTCSS sines).
+    if (!audioCtx || audioMuted || pttIsMine) return;
+    const floats = new Float32Array(pcm.length);
+    for (let i = 0; i < pcm.length; i++) floats[i] = pcm[i] / 32768;
+    const buffer = audioCtx.createBuffer(1, floats.length, audioSampleRate);
+    buffer.copyToChannel(floats, 0);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(audioGain);
+    const now = audioCtx.currentTime;
+    const start = Math.max(now, audioNextStart);
+    src.start(start);
+    audioNextStart = start + buffer.duration;
+    if (audioNextStart > now + 0.5) audioNextStart = now + 0.1;
+  };
+}
+startAudioWS();
+
+// Live audio level meter — always on, regardless of mute state.
+const audMeterFill = document.getElementById("aud-meter");
+const audStateLabel = document.getElementById("aud-state-label");
+setInterval(() => {
+  const pct = Math.min(100, (audioPeakLast / 32768) * 100 * 1.5);
+  audMeterFill.style.width = pct + "%";
+  audioPeakLast = Math.max(0, audioPeakLast * 0.6); // decay
+  // live context state
+  if (audioCtx) {
+    audStateLabel.textContent =
+      `ctx: ${audioCtx.state} @ ${audioCtx.sampleRate}Hz · stream: ${audioSampleRate}Hz · ${audioMuted ? "MUTED" : "LIVE"} · frames ${audioFramesRx}`;
+  } else {
+    audStateLabel.textContent = `ctx: not created · frames rx: ${audioFramesRx} (click Unmute to start)`;
+  }
+}, 200);
+
+// =============================================================
+// CTCSS tone control
+// =============================================================
+const ctcssTone = document.getElementById("ctcss-tone");
+const ctcssAmp = document.getElementById("ctcss-amp");
+const ctcssState = document.getElementById("ctcss-state");
+
+async function pushCtcss() {
+  const body = {
+    freq_hz: ctcssTone.value ? parseFloat(ctcssTone.value) : null,
+    amplitude: parseInt(ctcssAmp.value, 10),
+  };
+  try {
+    const r = await fetch("/api/tx/ctcss", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    ctcssState.textContent = j.enabled
+      ? `on · ${j.freq_hz.toFixed(1)} Hz · level ${j.amplitude}`
+      : "off";
+    logEvent("ctcss", j);
+  } catch (e) {
+    ctcssState.textContent = `err: ${e}`;
+  }
+}
+ctcssTone.onchange = pushCtcss;
+ctcssAmp.onchange = pushCtcss;
+// Fetch current state on load
+fetch("/api/tx/ctcss").then(r => r.json()).then(j => {
+  if (j.enabled) {
+    ctcssTone.value = j.freq_hz.toFixed(1);
+    ctcssAmp.value = j.amplitude;
+    ctcssState.textContent = `on · ${j.freq_hz.toFixed(1)} Hz · level ${j.amplitude}`;
+  } else {
+    ctcssState.textContent = "off";
+  }
+}).catch(() => {});
+
+// =============================================================
+// Audio filters (HPF / LPF / noise gate, server-side)
+// =============================================================
+function bindFilters(side) {
+  const on = (k) => document.getElementById(`${side}-${k}-on`);
+  const v  = (k) => document.getElementById(`${side}-${k}`);
+  const push = async () => {
+    const body = {
+      hp_enabled: on("hp").checked,
+      lp_enabled: on("lp").checked,
+      gate_enabled: on("gate").checked,
+      hp_fc: parseFloat(v("hp-fc").value) || 300,
+      lp_fc: parseFloat(v("lp-fc").value) || 3000,
+      gate_db: parseFloat(v("gate-db").value) || -40,
+    };
+    try {
+      const r = await fetch(`/api/audio/filters/${side}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      logEvent(`${side} filters`, j);
+    } catch (e) { logEvent(`${side} filters err`, { e: String(e) }); }
+  };
+  ["hp", "lp", "gate"].forEach(k => {
+    on(k).onchange = push;
+  });
+  ["hp-fc", "lp-fc", "gate-db"].forEach(k => {
+    v(k).onchange = push;
+  });
+  // Fetch current server state on load
+  fetch(`/api/audio/filters/${side}`).then(r => r.json()).then(j => {
+    on("hp").checked = j.hp_enabled;
+    on("lp").checked = j.lp_enabled;
+    on("gate").checked = j.gate_enabled;
+    v("hp-fc").value = j.hp_fc.toFixed(0);
+    v("lp-fc").value = j.lp_fc.toFixed(0);
+    v("gate-db").value = j.gate_db.toFixed(0);
+  }).catch(() => {});
+}
+bindFilters("rx");
+bindFilters("tx");
+
+// Test tone — 1s 440Hz sine. Proves the AudioContext can output.
+document.getElementById("aud-test").onclick = async () => {
+  ensureAudio();
+  if (audioCtx.state === "suspended") await audioCtx.resume();
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  g.gain.value = 0.25;
+  osc.frequency.value = 440;
+  osc.connect(g).connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.8);
+  logEvent("test tone", { ctx_state: audioCtx.state, sr: audioCtx.sampleRate });
+};
+
+// =============================================================
+// Presets + save workflow
+// =============================================================
+let activeSnapshot = null;  // latest ?10 decode
+let saveMode = false;       // armed by "Save to preset..."
+
+const grid = document.getElementById("preset-grid");
+const saveArmBtn = document.getElementById("save-arm-btn");
+const saveHint = document.getElementById("save-hint");
+
+function setSaveMode(on) {
+  saveMode = on;
+  saveArmBtn.textContent = on ? "Cancel save" : "Save to preset…";
+  saveArmBtn.classList.toggle("primary", on);
+  grid.classList.toggle("save-arm", on);
+  saveHint.style.color = on ? "var(--warn)" : "";
+  saveHint.innerHTML = on
+    ? "<b>ARMED</b> — click a preset tile to write your current tune to that slot."
+    : "Tip: tune first (RX/TX/mode), then <b>Save to preset…</b> and click a slot — your current tune is written to that slot's EEPROM.";
+}
+
+saveArmBtn.onclick = () => setSaveMode(!saveMode);
+document.getElementById("store-btn").onclick = () => apiPost("/api/command/store");
+
+async function saveToPreset(n) {
+  if (!activeSnapshot) { logEvent("err", { msg: "no telemetry snapshot yet; wait a second" }); return; }
+  const snap = activeSnapshot;
+  const wasDifferent = snap.preset !== n;
+  logEvent("save-to-preset", { target: n, from: snap.preset, rx_mhz: snap.rx_mhz, tx_mhz: snap.tx_mhz, mode: snap.mod_tx_rx });
+  if (wasDifferent) {
+    // Switch to target slot — this loads ITS stored values into RAM (losing our tune).
+    await apiPost(`/api/command/preset/${n}`);
+    await new Promise(r => setTimeout(r, 150)); // small settle
+    // Re-apply the captured tune.
+    await apiPost(`/api/command/tune`, {
+      rx_hz: Math.round(snap.rx_mhz * 1e6),
+      tx_hz: Math.round(snap.tx_mhz * 1e6),
+      mode: snap.mod_tx_rx,
+      step: "5k",
+    });
+    await apiPost(`/api/command/power/${snap.power}`);
+    await apiPost(`/api/command/scan_list_member/${snap.on_scan_list ? "on" : "off"}`);
+  }
+  await apiPost(`/api/command/store`);
+  logEvent("saved", { preset: n });
+}
+
+for (let n = 0; n <= 9; n++) {
+  const b = document.createElement("button");
+  b.className = "preset"; b.dataset.n = n;
+  b.innerHTML = `<span class="n">P${n}</span>`;
+  b.onclick = async () => {
+    if (saveMode) {
+      setSaveMode(false);
+      await saveToPreset(n);
+    } else {
+      apiPost(`/api/command/preset/${n}`);
+    }
+  };
+  grid.appendChild(b);
+}
+
+// =============================================================
+// Segmented controls
+// =============================================================
+function bindSegmented(id, endpoint) {
+  document.querySelectorAll(`#${id} button`).forEach(b => {
+    b.onclick = () => apiPost(`${endpoint}/${b.dataset.v}`);
+  });
+}
+bindSegmented("seg-lamp",    "/api/command/lamp");
+bindSegmented("seg-speaker", "/api/command/speaker");
+bindSegmented("seg-mod",     "/api/command/mod");
+bindSegmented("seg-power",   "/api/command/power");
+
+// Squelch slider (debounced)
+const sqSlider = document.getElementById("sq-slider");
+const sqVal = document.getElementById("sq-val");
+let sqTimer = null;
+sqSlider.oninput = () => {
+  sqVal.textContent = sqSlider.value;
+  clearTimeout(sqTimer);
+  sqTimer = setTimeout(() => apiPost(`/api/command/squelch/${sqSlider.value}`), 150);
+};
+
+// =============================================================
+// Manual Tune
+// =============================================================
+const tuneRx = document.getElementById("tune-rx");
+const tuneTx = document.getElementById("tune-tx");
+const tuneMode = document.getElementById("tune-mode");
+const tuneStep = document.getElementById("tune-step");
+document.getElementById("simplex-btn").onclick = () => { tuneTx.value = tuneRx.value; };
+
+document.getElementById("tune-btn").onclick = async () => {
+  const rx = parseFloat(tuneRx.value);
+  const tx = parseFloat(tuneTx.value);
+  if (!isFinite(rx) || !isFinite(tx)) { logEvent("err", { msg: "bad freq" }); return; }
+  const body = { rx_hz: Math.round(rx * 1e6), tx_hz: Math.round(tx * 1e6), step: tuneStep.value };
+  if (tuneMode.value) body.mode = tuneMode.value;
+  await apiPost("/api/command/tune", body);
+};
+
+// =============================================================
+// Channel Library
+// =============================================================
+const groupFilter = document.getElementById("ch-group-filter");
+const importGroup = document.getElementById("ch-import-group");
+const existingGroups = document.getElementById("existing-groups");
+const chBody = document.getElementById("ch-body");
+const chResult = document.getElementById("ch-import-result");
+
+async function loadGroups() {
+  try {
+    const r = await fetch("/api/channels/groups");
+    const gs = await r.json();
+    const prev = groupFilter.value;
+    groupFilter.innerHTML = '<option value="">(all groups)</option>';
+    existingGroups.innerHTML = "";
+    for (const g of gs) {
+      const opt = document.createElement("option"); opt.value = g.name; opt.textContent = `${g.name} (${g.channel_count})`;
+      groupFilter.appendChild(opt);
+      const opt2 = document.createElement("option"); opt2.value = g.name; existingGroups.appendChild(opt2);
+    }
+    groupFilter.value = prev;
+  } catch (e) { logEvent("err", { source: "loadGroups", err: String(e) }); }
+}
+
+async function loadChannels() {
+  try {
+    const group = groupFilter.value;
+    const url = group ? `/api/channels?group=${encodeURIComponent(group)}` : "/api/channels";
+    const r = await fetch(url);
+    const chs = await r.json();
+    chBody.innerHTML = "";
+    for (const c of chs) {
+      const oob = !isTunable(c.rx_hz) && !isTunable(c.tx_hz);
+      const tr = document.createElement("tr");
+      if (oob) tr.className = "oob";
+      const badge = oob ? ' <span class="oob-badge" title="outside your URC-200\'s bands">OOB</span>' : '';
+      tr.innerHTML = `
+        <td>${escape(c.group_name)}</td>
+        <td>${escape(c.name)}${badge}</td>
+        <td class="num">${(c.rx_hz/1e6).toFixed(4)}</td>
+        <td class="num">${(c.tx_hz/1e6).toFixed(4)}</td>
+        <td>${c.mode ? c.mode.toUpperCase() : "–"}</td>
+        <td class="num">${c.ctcss_hz ? c.ctcss_hz.toFixed(1) : "–"}</td>
+        <td>${escape(c.notes ?? "")}</td>
+        <td class="actions">
+          <button class="primary" data-tune="${c.id}" ${oob ? "disabled title='outside URC-200 band'" : ""}>Tune</button>
+          <button class="danger"  data-del="${c.id}" title="delete">×</button>
+        </td>`;
+      chBody.appendChild(tr);
+    }
+    chBody.querySelectorAll("button[data-tune]:not([disabled])").forEach(b =>
+      b.onclick = async () => {
+        await apiPost(`/api/channels/${b.dataset.tune}/tune`);
+        // After tuning, the server auto-set CTCSS to match. Refresh our dropdown.
+        try {
+          const j = await fetch("/api/tx/ctcss").then(r => r.json());
+          if (j.enabled) {
+            ctcssTone.value = j.freq_hz.toFixed(1);
+            ctcssState.textContent = `on · ${j.freq_hz.toFixed(1)} Hz · level ${j.amplitude}`;
+          } else {
+            ctcssTone.value = "";
+            ctcssState.textContent = "off";
+          }
+        } catch {}
+      }
+    );
+    chBody.querySelectorAll("button[data-del]").forEach(b =>
+      b.onclick = async () => {
+        if (!confirm("Delete this channel?")) return;
+        await fetch(`/api/channels/${b.dataset.del}`, { method: "DELETE" });
+        loadGroups(); loadChannels();
+      }
+    );
+  } catch (e) { logEvent("err", { source: "loadChannels", err: String(e) }); }
+}
+
+groupFilter.onchange = loadChannels;
+document.getElementById("ch-reload-btn").onclick = () => { loadGroups(); loadChannels(); };
+document.getElementById("ch-import-btn").onclick = () => {
+  if (!importGroup.value.trim()) { alert("Enter a group name first (e.g. Aviation, Satcom, Marine HF)"); return; }
+  document.getElementById("ch-import-file").click();
+};
+document.getElementById("ch-import-file").onchange = async (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  const text = await file.text();
+  try {
+    const r = await fetch(`/api/channels/import?group=${encodeURIComponent(importGroup.value.trim())}`, {
+      method: "POST", headers: { "Content-Type": "text/csv" }, body: text,
+    });
+    if (!r.ok) { chResult.textContent = `error: ${await r.text()}`; chResult.style.color = "var(--danger)"; return; }
+    const j = await r.json();
+    chResult.innerHTML = `imported ${j.imported} channels into <b>${escape(j.group)}</b> (profile: ${j.profile})`
+      + (j.skipped.length ? ` · <span style="color:var(--warn)">${j.skipped.length} skipped</span>` : "");
+    chResult.style.color = "var(--ok)";
+    loadGroups(); loadChannels();
+  } catch (err) {
+    chResult.textContent = `error: ${err}`; chResult.style.color = "var(--danger)";
+  }
+  e.target.value = "";
+};
+
+function escape(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+// URC-200 V2 supported bands (Hammer's unit: base VHF+UHF, no options).
+// TODO: read ebn30/ebn400 from ?11 telemetry to auto-widen for radios with options installed.
+function isTunable(hz) {
+  return (hz >= 115_000_000 && hz <= 173_995_000) || (hz >= 225_000_000 && hz <= 399_995_000);
+}
+
+// =============================================================
+// Generic POST + initial loads
+// =============================================================
+async function apiPost(path, body) {
+  try {
+    const r = await fetch(path, {
+      method: "POST",
+      headers: body ? { "Content-Type": "application/json" } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const text = await r.text();
+    let parsed; try { parsed = JSON.parse(text); } catch {}
+    logEvent(r.ok ? "ok" : "err", { path, status: r.status, body: parsed ?? text });
+  } catch (e) { logEvent("err", { path, err: String(e) }); }
+}
+
+loadGroups();
+loadChannels();
+</script>
+</body>
+</html>

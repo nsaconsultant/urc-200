@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/latency-spike",
+  "crates/radio-probe",
+  "crates/urc200-proto",
+  "crates/urc200-serial",
+  "crates/urc200-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.84"
+publish = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

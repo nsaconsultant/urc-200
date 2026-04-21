@@ -1,0 +1,12 @@
+[package]
+name = "radio-probe"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow = "1"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "io-util", "sync"] }
+urc200-proto = { path = "../urc200-proto" }
+urc200-serial = { path = "../urc200-serial" }

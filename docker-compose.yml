@@ -1,0 +1,33 @@
+services:
+  urc200-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: urc200-server
+    # USB-serial + USB-audio passthrough. When the PL2303 re-enumerates (USB
+    # hiccup, container restart), Linux sometimes bumps the tty number. Pass
+    # the first several through so the server can auto-pick whichever exists.
+    # NOTE: the PL2303 re-enumerates occasionally (USB hiccup → ttyUSB0
+    # becomes ttyUSB1 etc.). For stable naming add a host udev rule:
+    #   SUBSYSTEM=="tty", ATTRS{idVendor}=="067b", ATTRS{idProduct}=="2303", SYMLINK+="urc200-serial"
+    # Then point the device below at /dev/urc200-serial and forget about it.
+    devices:
+      - "/dev/snd:/dev/snd"
+      - "/dev/ttyUSB0:/dev/ttyUSB0"    # current live port; swap if PL2303 moves
+    volumes:
+      - ./crates/urc200-server/static:/opt/urc200/static:ro
+      - urc200-data:/var/lib/urc200
+    group_add:
+      - audio
+      - dialout
+    ports:
+      - "3000:3000"
+    environment:
+      RUST_LOG: urc200_server=info,urc200_serial=info,tower_http=info
+      URC_PORT: /dev/ttyUSB0
+      URC_BIND: 0.0.0.0:3000
+    stop_grace_period: 5s
+    restart: unless-stopped
+
+volumes:
+  urc200-data:
