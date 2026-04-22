@@ -97,6 +97,7 @@ async fn import(
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")).into_response(),
     };
     info!(group = %q.group, imported = n, skipped = skipped.len(), profile, "csv import");
+    s.emit_state(serde_json::json!({ "type": "channels_changed" }));
     Json(ImportReply {
         imported: n,
         skipped,
@@ -110,7 +111,10 @@ async fn import(
 
 async fn delete_channel(State(s): State<AppState>, Path(id): Path<i64>) -> Response {
     match s.db.delete_channel(id).await {
-        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(true) => {
+            s.emit_state(serde_json::json!({ "type": "channels_changed" }));
+            StatusCode::NO_CONTENT.into_response()
+        }
         Ok(false) => (StatusCode::NOT_FOUND, "no such channel").into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")).into_response(),
     }
@@ -118,7 +122,10 @@ async fn delete_channel(State(s): State<AppState>, Path(id): Path<i64>) -> Respo
 
 async fn delete_group(State(s): State<AppState>, Path(name): Path<String>) -> Response {
     match s.db.delete_group(name).await {
-        Ok(n) => Json(serde_json::json!({ "deleted": n })).into_response(),
+        Ok(n) => {
+            s.emit_state(serde_json::json!({ "type": "channels_changed" }));
+            Json(serde_json::json!({ "deleted": n })).into_response()
+        }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("db: {e}")).into_response(),
     }
 }
@@ -205,6 +212,8 @@ async fn tune_channel(State(s): State<AppState>, Path(id): Path<i64>) -> Respons
     // Auto-apply CTCSS from the channel definition (or clear it if the channel
     // has no tone). Mirrors what an inline hardware CTCSS encoder would do.
     s.audio_tx.ctcss.set(ch.ctcss_hz);
+    // Announce the CTCSS change so any other browser's UI reflects it.
+    s.emit_state(s.ctcss_snapshot());
 
     Json(TuneReply {
         channel: ch,

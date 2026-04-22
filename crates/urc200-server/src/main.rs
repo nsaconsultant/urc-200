@@ -57,6 +57,11 @@ use crate::scan::{ScanConfig, ScannerHandle};
 struct AppState {
     radio: Radio,
     telemetry: broadcast::Sender<TelemetryUpdate>,
+    /// Soft-state events broadcast to every `/api/ws/telemetry` client so any
+    /// browser sees state changes made from another tab — CTCSS changes, DSP
+    /// filter tweaks, channel library mutations. Pre-serialized JSON values
+    /// so the sender picks the schema.
+    state_events: broadcast::Sender<serde_json::Value>,
     ptt: PttHandle,
     db: Db,
     audio: AudioCapture,
@@ -64,6 +69,36 @@ struct AppState {
     scanner: ScannerHandle,
     #[cfg(feature = "sdr")]
     sdr: sdr_routes::SdrHandle,
+}
+
+impl AppState {
+    fn emit_state(&self, ev: serde_json::Value) {
+        // Fire-and-forget — if nobody's subscribed yet, dropping the event
+        // is correct (newly-connected clients will receive the authoritative
+        // snapshot on connect instead).
+        let _ = self.state_events.send(ev);
+    }
+    fn ctcss_snapshot(&self) -> serde_json::Value {
+        let (enabled, freq_hz, amplitude) = self.audio_tx.ctcss.get();
+        serde_json::json!({
+            "type": "ctcss",
+            "enabled": enabled,
+            "freq_hz": freq_hz,
+            "amplitude": amplitude,
+        })
+    }
+    fn rx_filter_snapshot(&self) -> serde_json::Value {
+        let s = self.audio.filters.snapshot();
+        let mut v = serde_json::to_value(s).unwrap_or(serde_json::json!({}));
+        v["type"] = serde_json::Value::String("rx_filters".into());
+        v
+    }
+    fn tx_filter_snapshot(&self) -> serde_json::Value {
+        let s = self.audio_tx.filters.snapshot();
+        let mut v = serde_json::to_value(s).unwrap_or(serde_json::json!({}));
+        v["type"] = serde_json::Value::String("tx_filters".into());
+        v
+    }
 }
 
 #[tokio::main]
@@ -145,9 +180,12 @@ async fn main() -> Result<()> {
         sdr_routes::SdrHandle::spawn(cfg)
     };
 
+    let (state_events, _) = broadcast::channel::<serde_json::Value>(64);
+
     let state = AppState {
         radio: radio_handle.radio.clone(),
         telemetry: poller.sender(),
+        state_events,
         ptt: ptt_handle.clone(),
         db: database,
         audio: audio.clone(),
@@ -264,6 +302,7 @@ async fn set_ctcss(State(s): State<AppState>, Json(req): Json<CtcssReq>) -> Json
         s.audio_tx.ctcss.set_amplitude(a);
     }
     let (enabled, freq_hz, amplitude) = s.audio_tx.ctcss.get();
+    s.emit_state(s.ctcss_snapshot());
     Json(CtcssState {
         enabled,
         freq_hz,
@@ -307,12 +346,16 @@ fn apply_filter_req(cfg: &dsp::FilterConfig, req: FilterReq) {
 async fn get_rx_filters(State(s): State<AppState>) -> Json<dsp::FilterSnapshot> { Json(s.audio.filters.snapshot()) }
 async fn set_rx_filters(State(s): State<AppState>, Json(req): Json<FilterReq>) -> Json<dsp::FilterSnapshot> {
     apply_filter_req(&s.audio.filters, req);
-    Json(s.audio.filters.snapshot())
+    let snap = s.audio.filters.snapshot();
+    s.emit_state(s.rx_filter_snapshot());
+    Json(snap)
 }
 async fn get_tx_filters(State(s): State<AppState>) -> Json<dsp::FilterSnapshot> { Json(s.audio_tx.filters.snapshot()) }
 async fn set_tx_filters(State(s): State<AppState>, Json(req): Json<FilterReq>) -> Json<dsp::FilterSnapshot> {
     apply_filter_req(&s.audio_tx.filters, req);
-    Json(s.audio_tx.filters.snapshot())
+    let snap = s.audio_tx.filters.snapshot();
+    s.emit_state(s.tx_filter_snapshot());
+    Json(snap)
 }
 
 // -------- Scanner WS --------
@@ -542,11 +585,27 @@ async fn ws_telemetry(ws: WebSocketUpgrade, State(state): State<AppState>) -> Re
 }
 
 async fn handle_ws_telemetry(mut socket: WebSocket, state: AppState) {
+    // Subscribe BEFORE snapshotting so any mutation that happens between
+    // snapshot and subscribe is delivered via the broadcast (rather than
+    // lost in the gap).
     let mut rx = state.telemetry.subscribe();
+    let mut state_rx = state.state_events.subscribe();
+
+    // Catch up the new client with current soft-state (CTCSS, DSP filters).
+    // Radio telemetry fills in from the next poll cycle ~100-500 ms later.
+    for snap in [
+        state.ctcss_snapshot(),
+        state.rx_filter_snapshot(),
+        state.tx_filter_snapshot(),
+    ] {
+        if socket.send(Message::Text(snap.to_string())).await.is_err() {
+            return;
+        }
+    }
     info!("ws telemetry client connected");
     loop {
         tokio::select! {
-            // Drain the broadcast, forwarding to the socket.
+            // Drain the telemetry broadcast, forwarding to the socket.
             msg = rx.recv() => match msg {
                 Ok(update) => {
                     let evt = WsEvent::from(update);
@@ -566,6 +625,18 @@ async fn handle_ws_telemetry(mut socket: WebSocket, state: AppState) {
                         .await;
                 }
                 Err(broadcast::error::RecvError::Closed) => break,
+            },
+            // Cross-tab state events (CTCSS change, DSP filter change,
+            // channel library mutation). Forwarded as-is — each event is
+            // already a JSON object with a `type` tag.
+            se = state_rx.recv() => match se {
+                Ok(v) => {
+                    if socket.send(Message::Text(v.to_string())).await.is_err() {
+                        break;
+                    }
+                }
+                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Closed) => {}
             },
             // Read side: drop the socket on any client-initiated close.
             incoming = socket.recv() => match incoming {

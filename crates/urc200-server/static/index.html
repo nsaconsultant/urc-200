@@ -647,10 +647,48 @@ mkWS("/api/ws/telemetry", (e) => {
       syncSegmented("seg-power", ev.power);
       break;
     }
+    // Soft-state events fanned out from other browsers so UI stays in sync.
+    case "ctcss":        applyCtcssSnapshot(ev); break;
+    case "rx_filters":   applyFilterSnapshot("rx", ev); break;
+    case "tx_filters":   applyFilterSnapshot("tx", ev); break;
+    case "channels_changed":
+      loadGroups(); loadChannels(); populateScanGroups();
+      break;
     case "error": logEvent("err", ev); return;
   }
   if (ev.type !== "rssi") logEvent(ev.type, ev);
 }, mkStatusEls("tel"));
+
+// Shared appliers used by both the initial /api/* fetch and the cross-tab
+// WS events. Defined as globals so callers defined later in the file (the
+// CTCSS + filters blocks) can still use them.
+window.applyCtcssSnapshot = function(j) {
+  const tone = document.getElementById("ctcss-tone");
+  const amp = document.getElementById("ctcss-amp");
+  const state = document.getElementById("ctcss-state");
+  if (!tone || !amp || !state) return;
+  if (j.enabled) {
+    tone.value = j.freq_hz.toFixed(1);
+    amp.value = j.amplitude;
+    state.textContent = `on · ${j.freq_hz.toFixed(1)} Hz · level ${j.amplitude}`;
+  } else {
+    tone.value = "";
+    state.textContent = "off";
+  }
+};
+window.applyFilterSnapshot = function(side, j) {
+  const on = (k) => document.getElementById(`${side}-${k}-on`);
+  const v  = (k) => document.getElementById(`${side}-${k}`);
+  const lbl = (k) => document.getElementById(`${side}-${k}-v`);
+  if (!on("hp") || !v("hp-fc")) return;
+  on("hp").checked   = !!j.hp_enabled;
+  on("lp").checked   = !!j.lp_enabled;
+  on("gate").checked = !!j.gate_enabled;
+  if (typeof j.hp_fc   === "number") v("hp-fc").value   = j.hp_fc.toFixed(0);
+  if (typeof j.lp_fc   === "number") v("lp-fc").value   = j.lp_fc.toFixed(0);
+  if (typeof j.gate_db === "number") v("gate-db").value = j.gate_db.toFixed(0);
+  ["hp-fc","lp-fc","gate-db"].forEach(k => { if (lbl(k) && v(k)) lbl(k).textContent = v(k).value; });
+};
 
 function renderBadges(g) {
   const el = document.getElementById("badges");
