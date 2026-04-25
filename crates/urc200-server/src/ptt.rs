@@ -246,6 +246,14 @@ async fn handle_start(state: &mut State, client: ClientId, label: ClientLabel) -
     if let Some(o) = &state.owner {
         return Grant::DeniedLockedBy(o.snapshot.label.clone());
     }
+    // Flush the radio's command parser before keying. URC-200 manual §4.6.3
+    // recommends `Z` to "re-establish sync". RF coupling onto the RS-232 RX
+    // line during nearby transmissions can inject spurious bytes into the
+    // radio's UART buffer even when we send nothing; if those bytes are
+    // sitting in the parse buffer when our next command arrives, they
+    // concatenate and the radio interprets a different command. A Z right
+    // before B guarantees the parse state is clean.
+    let _ = state.radio.send(OpCommand::Zap).await;
     // THIS IS THE ONLY PLACE IN THE SERVER THAT ISSUES `B\r` TO THE RADIO.
     // It is reached only when a WebSocket client sends a deliberate
     // `ptt_start` message. No automation path leads here.
@@ -270,6 +278,12 @@ async fn release(state: &mut State, reason: ReleaseReason) {
         Some(o) => o.snapshot,
         None => return,
     };
+    // Flush the radio's parser BEFORE the un-key (see Z rationale at the top
+    // of `handle_start`). This is the critical one: the radio has been
+    // transmitting, so RF coupling onto its RX line is at peak, and we've
+    // observed an `E` after a TX window getting interpreted as a preset-
+    // cancel command and resetting the radio to factory defaults.
+    let _ = state.radio.send(OpCommand::Zap).await;
     // Unkey unconditionally. If this fails, we still drop ownership — the
     // next heartbeat sweep can retry, and startup-unkey will catch anything
     // that somehow stayed latched.
@@ -309,7 +323,7 @@ mod tests {
 
     #[tokio::test]
     async fn start_grants_when_idle() {
-        let (ptt, _task, radio) = spawn_arbiter(2); // B, then E on shutdown
+        let (ptt, _task, radio) = spawn_arbiter(4); // Z+B start, Z+E shutdown
         let g = ptt.start("c1".into(), "alice".into()).await;
         assert!(matches!(g, Grant::Granted));
         let owner = ptt.query_owner().await.unwrap();
@@ -320,7 +334,7 @@ mod tests {
 
     #[tokio::test]
     async fn second_start_denied_while_held() {
-        let (ptt, _task, radio) = spawn_arbiter(2);
+        let (ptt, _task, radio) = spawn_arbiter(4); // Z+B start1, denied=0, Z+E shutdown
         let g1 = ptt.start("c1".into(), "alice".into()).await;
         assert!(matches!(g1, Grant::Granted));
         let g2 = ptt.start("c2".into(), "bob".into()).await;
@@ -334,7 +348,7 @@ mod tests {
 
     #[tokio::test]
     async fn stop_releases_and_unkeys() {
-        let (ptt, _task, radio) = spawn_arbiter(3); // B, E (stop), E (shutdown)
+        let (ptt, _task, radio) = spawn_arbiter(4); // Z+B start, Z+E stop, shutdown=0 (already released)
         let mut sub = ptt.subscribe();
         ptt.start("c1".into(), "alice".into()).await;
         let _ = sub.recv().await.unwrap(); // Acquired
@@ -354,7 +368,7 @@ mod tests {
 
     #[tokio::test]
     async fn heartbeat_timeout_forces_unkey() {
-        let (ptt, _task, radio) = spawn_arbiter(3); // B, E (timeout), E (shutdown)
+        let (ptt, _task, radio) = spawn_arbiter(4); // Z+B start, Z+E timeout-release
         let mut sub = ptt.subscribe();
         ptt.start("c1".into(), "alice".into()).await;
         let _ = sub.recv().await.unwrap();
@@ -374,7 +388,7 @@ mod tests {
 
     #[tokio::test]
     async fn heartbeat_keeps_ownership_alive() {
-        let (ptt, _task, radio) = spawn_arbiter(2); // B, E (shutdown)
+        let (ptt, _task, radio) = spawn_arbiter(4); // Z+B start, Z+E shutdown
         ptt.start("c1".into(), "alice".into()).await;
         for _ in 0..5 {
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -387,7 +401,7 @@ mod tests {
 
     #[tokio::test]
     async fn socket_close_releases() {
-        let (ptt, _task, radio) = spawn_arbiter(3); // B, E (close), E (shutdown)
+        let (ptt, _task, radio) = spawn_arbiter(4); // Z+B start, Z+E close-release
         ptt.start("c1".into(), "alice".into()).await;
         ptt.client_gone("c1".into()).await;
         // Give the arbiter a tick to process.
@@ -404,7 +418,7 @@ mod tests {
     /// conformance suite (radio-core).
     #[tokio::test]
     async fn shutdown_while_keyed_unkeys_within_500ms() {
-        let (ptt, _task, radio) = spawn_arbiter(2); // B, E (shutdown)
+        let (ptt, _task, radio) = spawn_arbiter(4); // Z+B start, Z+E shutdown
         let mut sub = ptt.subscribe();
         ptt.start("c1".into(), "alice".into()).await;
         let _ = sub.recv().await.unwrap(); // Acquired
@@ -428,7 +442,7 @@ mod tests {
 
     #[tokio::test]
     async fn shutdown_releases_if_held() {
-        let (ptt, _task, radio) = spawn_arbiter(2); // B, E (shutdown)
+        let (ptt, _task, radio) = spawn_arbiter(4); // Z+B start, Z+E shutdown
         let mut sub = ptt.subscribe();
         ptt.start("c1".into(), "alice".into()).await;
         let _ = sub.recv().await.unwrap();
@@ -445,7 +459,7 @@ mod tests {
 
     #[tokio::test]
     async fn heartbeat_from_non_owner_is_ignored() {
-        let (ptt, _task, radio) = spawn_arbiter(3); // B, E (timeout), E (shutdown)
+        let (ptt, _task, radio) = spawn_arbiter(4); // Z+B start, Z+E timeout-release
         ptt.start("c1".into(), "alice".into()).await;
         // Bob sends heartbeats, but he doesn't own the key — they must not
         // extend alice's lease.
@@ -462,7 +476,7 @@ mod tests {
 
     #[tokio::test]
     async fn stop_from_non_owner_is_ignored() {
-        let (ptt, _task, radio) = spawn_arbiter(2); // B, E (shutdown)
+        let (ptt, _task, radio) = spawn_arbiter(4); // Z+B start, Z+E shutdown
         ptt.start("c1".into(), "alice".into()).await;
         ptt.stop("c2".into()).await; // bob can't release alice's key
         tokio::time::sleep(Duration::from_millis(20)).await;
